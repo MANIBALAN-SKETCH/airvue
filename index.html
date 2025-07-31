@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>&lt;model-viewer&gt; example</title>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <link rel="stylesheet" href="demo-styles.css">
+  
+  <!-- The following libraries and polyfills are recommended to maximize browser support -->
+  <!-- NOTE: you must adjust the paths as appropriate for your project -->
+  
+  <!-- 💁 OPTIONAL: The :focus-visible polyfill removes the focus ring for some input types -->
+  <script src="https://unpkg.com/focus-visible@5.0.2/dist/focus-visible.js" defer></script>
+
+</head> 
+<body>
+  <div id="card">
+    <!-- All you need to put beautiful, interactive 3D content on your site: -->
+    <model-viewer camera-controls touch-action="pan-y" autoplay ar ar-modes="webxr scene-viewer" scale="0.2 0.2 0.2" shadow-intensity="1" src="https://cdn.glitch.me/7e59736b-98d5-426d-9cfa-378092710560/newairvue.glb?v=1700901518814" alt="An animated 3D model of a robot">
+      <div>
+        <button id="play-button">Play</button>
+        <button id="pause-button">Pause</button>
+        <button id="start-recording">Start Recording</button>
+        <button id="stop-recording" disabled>Stop Recording</button>
+        <button id="download-recording" disabled>Download Recording</button>
+        <button id="share-recording" disabled>Share Recording</button>
+      </div>
+    </model-viewer>
+    <section class="attribution">
+      <span>
+        <h1>AirVue</h1>
+        <span>By <a href="https://machenn.com/" target="_blank">Machenn</a></span>
+      </span>
+    </section>
+  </div>
+  
+  <footer></footer>
+  
+  <!-- 💁 Include both scripts below to support all browsers! -->
+  <!-- Loads <model-viewer> for modern browsers: -->
+  <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+  
+  <script>
+    const modelViewer = document.querySelector('model-viewer');
+    const playButton = document.getElementById('play-button');
+    const pauseButton = document.getElementById('pause-button');
+    const startRecordingButton = document.getElementById('start-recording');
+    const stopRecordingButton = document.getElementById('stop-recording');
+    const downloadRecordingButton = document.getElementById('download-recording');
+    const shareRecordingButton = document.getElementById('share-recording');
+
+    let mediaRecorder;
+    let recordedChunks = [];
+
+    playButton.addEventListener('click', function() {
+      modelViewer.play();
+    });
+
+    pauseButton.addEventListener('click', function() {
+      modelViewer.pause();
+    });
+
+    startRecordingButton.addEventListener('click', async function() {
+      recordedChunks = [];
+      try {
+        const isMobile = /Android|iPhone|iPad|iPod|Windows Phone/i.test(navigator.userAgent);
+        
+        let stream;
+        if (isMobile) {
+          stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        } else {
+          stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+        }
+        
+        startMediaRecorder(stream);
+      } catch (err) {
+        console.error("Error: " + err);
+        alert("Failed to start recording: " + err.message);
+      }
+    });
+
+    function startMediaRecorder(stream) {
+      mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+
+      mediaRecorder.ondataavailable = function(event) {
+        if (event.data.size > 0) {
+          recordedChunks.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = function() {
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+      startRecordingButton.disabled = true;
+      stopRecordingButton.disabled = false;
+    }
+
+    stopRecordingButton.addEventListener('click', function() {
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+        startRecordingButton.disabled = false;
+        stopRecordingButton.disabled = true;
+        downloadRecordingButton.disabled = false;
+        shareRecordingButton.disabled = false;
+      }
+    });
+
+    downloadRecordingButton.addEventListener('click', function() {
+      const blob = new Blob(recordedChunks, { type: 'video/webm' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = 'recording.webm';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+    });
+
+    shareRecordingButton.addEventListener('click', async function() {
+      const blob = new Blob(recordedChunks, { type: 'video/webm' });
+      const file = new File([blob], 'recording.webm', { type: 'video/webm' });
+      const filesArray = [file];
+
+      if (navigator.canShare && navigator.canShare({ files: filesArray })) {
+        try {
+          await navigator.share({
+            files: filesArray,
+            title: 'Recording',
+            text: 'Check out this recording!',
+          });
+        } catch (err) {
+          console.error("Error: " + err);
+          alert("Failed to share the recording: " + err.message);
+        }
+      } else {
+        alert('Sharing is not supported on this browser.');
+      }
+    });
+  </script>
+</body>
+</html>
